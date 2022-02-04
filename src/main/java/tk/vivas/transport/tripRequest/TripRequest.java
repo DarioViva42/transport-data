@@ -11,6 +11,12 @@ public class TripRequest {
 
     private Params params;
 
+    public TripRequest(Origin origin, Destination destination, Params params) {
+        this.origin = origin;
+        this.destination = destination;
+        this.params = params;
+    }
+
     public Origin getOrigin() {
         return origin;
     }

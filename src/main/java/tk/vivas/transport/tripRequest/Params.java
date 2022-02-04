@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 @JsonNaming(PropertyNamingStrategies.UpperCamelCaseStrategy.class)
 public class Params {
-    private boolean numberOfResults;
+    private int numberOfResults;
 
     private boolean includeTrackSections;
 
@@ -13,11 +13,23 @@ public class Params {
 
     private boolean includeIntermediateStops;
 
-    public boolean isNumberOfResults() {
+    public Params(int numberOfResults,
+                  boolean includeTrackSections, boolean includeLegProjection, boolean includeIntermediateStops) {
+        this.numberOfResults = numberOfResults;
+        this.includeTrackSections = includeTrackSections;
+        this.includeLegProjection = includeLegProjection;
+        this.includeIntermediateStops = includeIntermediateStops;
+    }
+
+    public Params(int numberOfResults) {
+        this.numberOfResults = numberOfResults;
+    }
+
+    public int getNumberOfResults() {
         return numberOfResults;
     }
 
-    public void setNumberOfResults(boolean numberOfResults) {
+    public void setNumberOfResults(int numberOfResults) {
         this.numberOfResults = numberOfResults;
     }
 

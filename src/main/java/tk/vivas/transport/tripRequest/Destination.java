@@ -7,6 +7,10 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 public class Destination {
     private LocationRef locationRef;
 
+    public Destination(LocationRef locationRef) {
+        this.locationRef = locationRef;
+    }
+
     public LocationRef getLocationRef() {
         return locationRef;
     }

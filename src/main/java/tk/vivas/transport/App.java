@@ -1,10 +1,13 @@
 package tk.vivas.transport;
 
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+import tk.vivas.transport.tripRequest.*;
 import tk.vivas.transport.tripResponse.AbstractLeg;
 import tk.vivas.transport.tripResponse.InterchangeLeg;
 import tk.vivas.transport.tripResponse.Leg;
@@ -49,25 +52,21 @@ public class App {
 
     static DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
-    public static void main(String[] args) throws IOException, InterruptedException,
-            ParserConfigurationException, TransformerException, SAXException {
-        DocumentBuilder documentBuilder = createBuilder();
-        String data = documentToString(createTripRequestDocument(documentBuilder, "8516161", "8589236"));
-        System.out.println(data);
-        String response = getFromWeb(data);
+    public static void main(String[] args) throws IOException, InterruptedException {
 
-        readResponse(documentBuilder, response);
+        XmlMapper xmlMapper = getXmlMapper();
+        String data = createTripRequestDocument(xmlMapper, 5,
+                "8516161", "8589236");
+        System.out.println(data);
+
+        String response = getFromWeb(data);
+        System.out.println(XmlFormatter.format(response));
+
+        readResponse(xmlMapper, response);
     }
 
-    private static void readResponse(DocumentBuilder documentBuilder, String response)
-            throws IOException, SAXException, TransformerException {
-        Document doc = documentBuilder.parse(new InputSource(new StringReader(response)));
-        doc.getDocumentElement().normalize();
-
-        System.out.println(documentToString(doc));
-
-        XmlMapper xmlMapper = new XmlMapper();
-        xmlMapper.setTimeZone(TimeZone.getTimeZone("Europe/Zurich"));
+    private static void readResponse(XmlMapper xmlMapper, String response)
+            throws IOException {
 
         TriasTripResponse trias = xmlMapper.readValue(response, TriasTripResponse.class);
 
@@ -122,6 +121,15 @@ public class App {
         }
     }
 
+    private static XmlMapper getXmlMapper() {
+        XmlMapper xmlMapper = new XmlMapper();
+        xmlMapper.setTimeZone(TimeZone.getTimeZone("Europe/Zurich"));
+
+        xmlMapper.registerModule(new JavaTimeModule());
+        xmlMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return xmlMapper;
+    }
+
     private static void printTrip(String stationDeparture, LocalDateTime timeDeparture,
                                   String stationArrival, LocalDateTime timeArrival) {
         System.out.println(timeDeparture.format(FORMATTER) + " " + stationDeparture + " -> " +
@@ -145,97 +153,22 @@ public class App {
         }
     }
 
-    private static Document createTripRequestDocument(DocumentBuilder builder,
-                                                      String originPoint, String destinationPoint) {
-        Document newDoc = builder.newDocument();
-        Element root = newDoc.createElement("Trias");
-        root.setAttribute("version", "1.1");
-        root.setAttribute("xmlns", "http://www.vdv.de/trias");
-        root.setAttribute("xmlns:siri", "http://www.siri.org.uk/siri");
-        root.setAttribute("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
+    private static String createTripRequestDocument(XmlMapper mapper, int numberOfResults,
+                                                    String originPoint, String destinationPoint) throws IOException {
 
-        LocalDateTime now = LocalDateTime.now();
-        Element serviceRequest = newDoc.createElement("ServiceRequest");
+        Origin origin = new Origin(
+                new LocationRef(originPoint), LocalDateTime.now());
+        Destination destination = new Destination(
+                new LocationRef(destinationPoint));
+        Params params = new Params(numberOfResults);
 
-        Element requestTimestamp = newDoc.createElement("siri:RequestTimestamp");
-        requestTimestamp.appendChild(newDoc.createTextNode(now.toString()));
+        RequestPayload requestPayload = new RequestPayload(
+                new TripRequest(origin, destination, params));
 
-        Element requestorRef = newDoc.createElement("siri:RequestorRef");
-        requestorRef.appendChild(newDoc.createTextNode("API-Explorer"));
+        TriasTripRequest trias = new TriasTripRequest(
+                new ServiceRequest(LocalDateTime.now(), "API-Explorer", requestPayload));
 
-        serviceRequest.appendChild(requestTimestamp);
-        serviceRequest.appendChild(requestorRef);
-
-        Element requestPayload = newDoc.createElement("RequestPayload");
-        Element tripRequest = newDoc.createElement("TripRequest");
-
-        Element origin = createOrigin(newDoc, originPoint, now);
-        Element destination = createDestination(newDoc, destinationPoint);
-        Element params = createParams(newDoc, 5);
-
-        tripRequest.appendChild(origin);
-        tripRequest.appendChild(destination);
-        tripRequest.appendChild(params);
-        requestPayload.appendChild(tripRequest);
-        serviceRequest.appendChild(requestPayload);
-        root.appendChild(serviceRequest);
-        newDoc.appendChild(root);
-
-        return newDoc;
-    }
-
-    private static String documentToString(Document document) throws TransformerException {
-        DOMSource dom = new DOMSource(document);
-        Transformer transformer = TransformerFactory.newInstance()
-                .newTransformer();
-        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-
-        StringWriter writer = new StringWriter();
-        StreamResult result = new StreamResult(writer);
-        transformer.transform(dom, result);
-
-        return writer.toString();
-    }
-
-    private static Element createOrigin(Document document, String stopPoint, LocalDateTime now) {
-        Element origin = document.createElement("Origin");
-        Element locationRef = document.createElement("LocationRef");
-        Element stopPointRef = document.createElement("StopPointRef");
-        Element depArrTime = document.createElement("DepArrTime");
-
-        stopPointRef.appendChild(document.createTextNode(stopPoint));
-        locationRef.appendChild(stopPointRef);
-        origin.appendChild(locationRef);
-        depArrTime.appendChild(document.createTextNode(now.toString()));
-        origin.appendChild(depArrTime);
-
-        return origin;
-    }
-
-    private static Element createDestination(Document document, String stopPoint) {
-        Element destination = document.createElement("Destination");
-        Element locationRef = document.createElement("LocationRef");
-        Element stopPointRef = document.createElement("StopPointRef");
-
-        stopPointRef.appendChild(document.createTextNode(stopPoint));
-        locationRef.appendChild(stopPointRef);
-        destination.appendChild(locationRef);
-
-        return destination;
-    }
-
-    private static Element createParams(Document document, int i) {
-        Element params = document.createElement("Params");
-        Element numberOfResults = document.createElement("NumberOfResults");
-
-        numberOfResults.appendChild(document.createTextNode(String.valueOf(i)));
-        params.appendChild(numberOfResults);
-
-        return params;
-    }
-
-    private static DocumentBuilder createBuilder() throws ParserConfigurationException {
-        return DocumentBuilderFactory.newInstance().newDocumentBuilder();
+        return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(trias);
     }
 
     private static String getFromWeb(String data) throws IOException, InterruptedException {

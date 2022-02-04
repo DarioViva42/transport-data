@@ -16,6 +16,12 @@ public class ServiceRequest {
 
     private RequestPayload requestPayload;
 
+    public ServiceRequest(LocalDateTime requestTimestamp, String requestorRef, RequestPayload requestPayload) {
+        this.requestTimestamp = requestTimestamp;
+        this.requestorRef = requestorRef;
+        this.requestPayload = requestPayload;
+    }
+
     public LocalDateTime getRequestTimestamp() {
         return requestTimestamp;
     }
