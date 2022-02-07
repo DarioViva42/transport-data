@@ -1,36 +1,26 @@
 package tk.vivas.transport;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-import tk.vivas.transport.tripRequest.*;
-import tk.vivas.transport.tripResponse.AbstractLeg;
-import tk.vivas.transport.tripResponse.InterchangeLeg;
-import tk.vivas.transport.tripResponse.Leg;
-import tk.vivas.transport.tripResponse.LegAlight;
-import tk.vivas.transport.tripResponse.LegBoard;
-import tk.vivas.transport.tripResponse.ServiceDepartureArrival;
-import tk.vivas.transport.tripResponse.TimedLeg;
-import tk.vivas.transport.tripResponse.TriasTripResponse;
-import tk.vivas.transport.tripResponse.TripLeg;
-import tk.vivas.transport.tripResponse.TripResult;
+import tk.vivas.transport.request.*;
+import tk.vivas.transport.request.locationInformation.InitialInput;
+import tk.vivas.transport.request.locationInformation.LocationInformationRequest;
+import tk.vivas.transport.request.locationInformation.Restrictions;
+import tk.vivas.transport.request.trip.*;
+import tk.vivas.transport.response.trip.LegMarker;
+import tk.vivas.transport.response.trip.InterchangeLeg;
+import tk.vivas.transport.response.trip.Leg;
+import tk.vivas.transport.response.trip.LegAlight;
+import tk.vivas.transport.response.trip.LegBoard;
+import tk.vivas.transport.response.trip.ServiceDepartureArrival;
+import tk.vivas.transport.response.trip.TimedLeg;
+import tk.vivas.transport.response.TriasResponse;
+import tk.vivas.transport.response.trip.TripLeg;
+import tk.vivas.transport.response.trip.TripResult;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerException;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import java.io.IOException;
-import java.io.StringReader;
-import java.io.StringWriter;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -41,6 +31,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Scanner;
 import java.util.TimeZone;
 
 /**
@@ -55,30 +46,61 @@ public class App {
     public static void main(String[] args) throws IOException, InterruptedException {
 
         XmlMapper xmlMapper = getXmlMapper();
-        String data = createTripRequestDocument(xmlMapper, 5,
-                "8516161", "8589236");
-        System.out.println(data);
+
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.println("Select first place: ");
+        String firstLocationInformationRequest = createLocationInformationRequest(xmlMapper, scanner.nextLine());
+
+        System.out.println("Select second place: ");
+        String secondLocationInformationRequest = createLocationInformationRequest(xmlMapper, scanner.nextLine());
+
+        // System.out.println(firstLocationInformationRequest);
+
+        String firstLocation = getLocation(xmlMapper, firstLocationInformationRequest);
+        String secondLocation = getLocation(xmlMapper, secondLocationInformationRequest);
+
+        String data = createTripRequestDocument(xmlMapper, firstLocation, secondLocation);
+        // System.out.println(data);
 
         String response = getFromWeb(data);
-        System.out.println(XmlFormatter.format(response));
+        // System.out.println(XmlFormatter.format(response));
 
-        readResponse(xmlMapper, response);
+        printResult(xmlMapper, response);
     }
 
-    private static void readResponse(XmlMapper xmlMapper, String response)
+    private static String getLocation(XmlMapper mapper,String secondLocationInformationRequest)
+            throws IOException, InterruptedException {
+        String response = getFromWeb(secondLocationInformationRequest);
+
+        // System.out.println(XmlFormatter.format(response));
+
+        TriasResponse trias = mapper.readValue(response, TriasResponse.class);
+
+        return trias.getServiceDelivery()
+                .getDeliveryPayload()
+                .getLocationInformationResponse()
+                .getLocation()
+                .get(0)
+                .getLocation()
+                .getStopPoint()
+                .getStopPointRef();
+    }
+
+    private static void printResult(XmlMapper mapper, String response)
             throws IOException {
 
-        TriasTripResponse trias = xmlMapper.readValue(response, TriasTripResponse.class);
+        TriasResponse trias = mapper.readValue(response, TriasResponse.class);
 
-        System.out.println(trias.getServiceDelivery().getResponseTimestamp());
+        // System.out.println(trias.getServiceDelivery().getResponseTimestamp());
         List<TripResult> tripResultList = trias
                 .getServiceDelivery()
                 .getDeliveryPayload()
                 .getTripResponse()
                 .getTripResult();
         for (TripResult tripResult : tripResultList) {
-            System.out.println(tripResult.getTrip().getDuration());
-            System.out.println(tripResult.getTrip().getInterchanges());
+            System.out.println("Dauer:     " + formatDuration(tripResult.getTrip().getDuration()));
+            System.out.println("Umsteigen: " + tripResult.getTrip().getInterchanges() + "×");
 
             List<TripLeg> tripLegList = tripResult
                     .getTrip()
@@ -86,11 +108,13 @@ public class App {
 
             for (TripLeg tripLeg : tripLegList) {
                 System.out.println("–––––––––––––––––––––––––––––––––––––");
-                Class<? extends AbstractLeg> legType = tripLeg.getLeg().getClass();
+                Class<? extends LegMarker> legType = tripLeg.getLeg().getClass();
                 if (legType == InterchangeLeg.class) {
                     InterchangeLeg interchangeLeg = (InterchangeLeg) tripLeg.getLeg();
-                    System.out.println(interchangeLeg.getInterchangeMode());
-                    System.out.println(interchangeLeg.getDuration());
+
+                    Duration duration = interchangeLeg.getDuration();
+
+                    System.out.println(interchangeLeg.getInterchangeMode() + " " + formatDuration(duration));
 
                     LocalDateTime startTime = interchangeLeg.getTimeWindowStart();
                     LocalDateTime endTime = interchangeLeg.getTimeWindowEnd();
@@ -119,6 +143,19 @@ public class App {
 
             System.out.println("=====================================");
         }
+    }
+
+    private static String formatDuration(Duration duration) {
+        long HH = duration.toHours();
+        long MM = duration.toMinutesPart();
+
+        String durationFormatted;
+        if (HH == 0) {
+            durationFormatted = String.format("%02d min", MM);
+        } else {
+            durationFormatted = String.format("%02d h %02d min", HH, MM);
+        }
+        return durationFormatted;
     }
 
     private static XmlMapper getXmlMapper() {
@@ -153,19 +190,34 @@ public class App {
         }
     }
 
-    private static String createTripRequestDocument(XmlMapper mapper, int numberOfResults,
-                                                    String originPoint, String destinationPoint) throws IOException {
+    private static String createLocationInformationRequest(XmlMapper mapper, String locationName)
+            throws JsonProcessingException {
+
+        InitialInput initialInput = new InitialInput(locationName);
+        Restrictions restrictions = new Restrictions(1);
+
+        RequestPayload requestPayload = new RequestPayload(
+                new LocationInformationRequest(initialInput, restrictions));
+
+        TriasRequest trias = new TriasRequest(
+                new ServiceRequest(LocalDateTime.now(), "API-Explorer", requestPayload));
+
+        return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(trias);
+    }
+
+    private static String createTripRequestDocument(XmlMapper mapper, String originPoint, String destinationPoint)
+            throws IOException {
 
         Origin origin = new Origin(
-                new LocationRef(originPoint), LocalDateTime.now());
+                new LocationRef(originPoint), LocalDateTime.now().plus(Duration.ofHours(1)).plus(Duration.ofMinutes(20)));
         Destination destination = new Destination(
                 new LocationRef(destinationPoint));
-        Params params = new Params(numberOfResults);
+        Params params = new Params(5);
 
         RequestPayload requestPayload = new RequestPayload(
                 new TripRequest(origin, destination, params));
 
-        TriasTripRequest trias = new TriasTripRequest(
+        TriasRequest trias = new TriasRequest(
                 new ServiceRequest(LocalDateTime.now(), "API-Explorer", requestPayload));
 
         return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(trias);
@@ -186,7 +238,7 @@ public class App {
 
         HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
 
-        System.out.println(response.statusCode());
+        // System.out.println(response.statusCode());
         return response.body();
     }
 }
