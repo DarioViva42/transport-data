@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
+import tk.vivas.transport.RealLocalDateTimeDeserializer;
 import tk.vivas.transport.response.Location;
 
 import java.time.Duration;
@@ -21,11 +21,11 @@ public class InterchangeLeg implements LegMarker {
     @JsonProperty(namespace = "trias")
     private Location legEnd;
 
-    @JsonDeserialize(using = LocalDateTimeDeserializer.class)
+    @JsonDeserialize(using = RealLocalDateTimeDeserializer.class)
     @JsonProperty(namespace = "trias")
     private LocalDateTime timeWindowStart;
 
-    @JsonDeserialize(using = LocalDateTimeDeserializer.class)
+    @JsonDeserialize(using = RealLocalDateTimeDeserializer.class)
     @JsonProperty(namespace = "trias")
     private LocalDateTime timeWindowEnd;
 

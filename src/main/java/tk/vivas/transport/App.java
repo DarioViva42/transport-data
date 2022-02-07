@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.google.common.base.Splitter;
+import com.google.common.collect.Iterables;
 import tk.vivas.transport.request.*;
 import tk.vivas.transport.request.locationInformation.InitialInput;
 import tk.vivas.transport.request.locationInformation.LocationInformationRequest;
@@ -99,6 +101,7 @@ public class App {
                 .getTripResponse()
                 .getTripResult();
         for (TripResult tripResult : tripResultList) {
+            System.out.println("=====================================");
             System.out.println("Dauer:     " + formatDuration(tripResult.getTrip().getDuration()));
             System.out.println("Umsteigen: " + tripResult.getTrip().getInterchanges() + "×");
 
@@ -107,41 +110,29 @@ public class App {
                     .getTripLeg();
 
             for (TripLeg tripLeg : tripLegList) {
-                System.out.println("–––––––––––––––––––––––––––––––––––––");
                 Class<? extends LegMarker> legType = tripLeg.getLeg().getClass();
-                if (legType == InterchangeLeg.class) {
-                    InterchangeLeg interchangeLeg = (InterchangeLeg) tripLeg.getLeg();
-
-                    Duration duration = interchangeLeg.getDuration();
-
-                    System.out.println(interchangeLeg.getInterchangeMode() + " " + formatDuration(duration));
-
-                    LocalDateTime startTime = interchangeLeg.getTimeWindowStart();
-                    LocalDateTime endTime = interchangeLeg.getTimeWindowEnd();
-                    String startName = interchangeLeg.getLegStart().getLocationName().getText();
-                    String endName = interchangeLeg.getLegEnd().getLocationName().getText();
-
-                    printTrip(startName, startTime, endName, endTime);
-                } else if (legType == TimedLeg.class){
+                if (legType == TimedLeg.class){
+                    System.out.println("–––––––––––––––––––––––––––––––––––––");
                     TimedLeg timedLeg = (TimedLeg) tripLeg.getLeg();
                     LegBoard legBoard = timedLeg.getLegBoard();
                     LegAlight legAlight = timedLeg.getLegAlight();
 
                     String line = timedLeg.getService().getPublishedLineName().getText();
                     String mode = timedLeg.getService().getMode().getName().getText();
+                    String destination = timedLeg.getService().getDestinationText().getText();
+                    String journeyRefFull = timedLeg.getService().getJourneyRef();
+                    String journeyRef = Iterables.getLast(Splitter.on(":").split(journeyRefFull));
 
-                    System.out.println(line + " [" + mode + "]");
+                    System.out.println(mode + " " + line + " [" + journeyRef + "] Richtung " + destination);
 
-                    String stationDeparture = getStationName(legBoard);
+                    String stationDeparture = getStationName(legBoard, mode);
                     LocalDateTime timeDeparture = getTime(legBoard.getServiceDeparture());
-                    String stationArrival = getStationName(legAlight);
+                    String stationArrival = getStationName(legAlight, mode);
                     LocalDateTime timeArrival = getTime(legAlight.getServiceArrival());
 
                     printTrip(stationDeparture, timeDeparture, stationArrival, timeArrival);
                 }
             }
-
-            System.out.println("=====================================");
         }
     }
 
@@ -173,10 +164,13 @@ public class App {
                 timeArrival.format(FORMATTER) + " " + stationArrival);
     }
 
-    private static String getStationName(Leg leg) {
+    private static String getStationName(Leg leg, String mode) {
         String stationName = leg.getStopPointName().getText();
-        if (leg.getPlannedBay() != null) {
-            stationName += ", Plattform " + leg.getPlannedBay().getText();
+        String plattform = mode.equals("Zug") ? "Gleis" : "Kante";
+        if (leg.getEstimatedBay() != null) {
+            stationName += ", " + plattform + " " + leg.getEstimatedBay().getText();
+        } else if (leg.getPlannedBay() != null) {
+            stationName += ", " + plattform + " " + leg.getPlannedBay().getText();
         }
         return stationName;
     }
@@ -209,7 +203,7 @@ public class App {
             throws IOException {
 
         Origin origin = new Origin(
-                new LocationRef(originPoint), LocalDateTime.now().plus(Duration.ofHours(1)).plus(Duration.ofMinutes(20)));
+                new LocationRef(originPoint), LocalDateTime.now().plus(Duration.ofMinutes(20)));
         Destination destination = new Destination(
                 new LocationRef(destinationPoint));
         Params params = new Params(5);
