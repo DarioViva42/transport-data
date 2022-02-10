@@ -45,6 +45,18 @@ public class Mode {
         this.submode = busSubmode;
     }
 
+    @JsonProperty(namespace = "trias")
+    @JacksonXmlProperty(localName = "WaterSubmode")
+    public void setWaterSubmode(String waterSubmode) {
+        this.submode = waterSubmode;
+    }
+
+    @JsonProperty(namespace = "trias")
+    @JacksonXmlProperty(localName = "TelecabinSubmode")
+    public void setTelecabinSubmode(String telecabinSubmode) {
+        this.submode = telecabinSubmode;
+    }
+
     public Name getName() {
         return name;
     }

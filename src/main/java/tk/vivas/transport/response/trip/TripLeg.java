@@ -32,6 +32,12 @@ public class TripLeg {
         this.leg = timedLeg;
     }
 
+    @JsonProperty(namespace = "trias")
+    @JacksonXmlProperty(localName = "ContinuousLeg")
+    public void setTimedLeg(ContinuousLeg continuousLeg) {
+        this.leg = continuousLeg;
+    }
+
     public LegMarker getLeg() {
         return leg;
     }

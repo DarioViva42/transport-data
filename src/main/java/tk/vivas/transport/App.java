@@ -68,7 +68,9 @@ public class App {
         String response = getFromWeb(data);
         // System.out.println(XmlFormatter.format(response));
 
-        printResult(xmlMapper, response);
+        TriasResponse trias = xmlMapper.readValue(response, TriasResponse.class);
+
+        printResult(trias);
     }
 
     private static String getLocation(XmlMapper mapper,String secondLocationInformationRequest)
@@ -89,10 +91,7 @@ public class App {
                 .getStopPointRef();
     }
 
-    private static void printResult(XmlMapper mapper, String response)
-            throws IOException {
-
-        TriasResponse trias = mapper.readValue(response, TriasResponse.class);
+    private static void printResult(TriasResponse trias) {
 
         // System.out.println(trias.getServiceDelivery().getResponseTimestamp());
         List<TripResult> tripResultList = trias
@@ -100,6 +99,9 @@ public class App {
                 .getDeliveryPayload()
                 .getTripResponse()
                 .getTripResult();
+        if (tripResultList == null) {
+            return;
+        }
         for (TripResult tripResult : tripResultList) {
             System.out.println("=====================================");
             System.out.println("Dauer:     " + formatDuration(tripResult.getTrip().getDuration()));
@@ -166,7 +168,11 @@ public class App {
 
     private static String getStationName(Leg leg, String mode) {
         String stationName = leg.getStopPointName().getText();
-        String plattform = mode.equals("Zug") ? "Gleis" : "Kante";
+        String plattform = switch (mode) {
+            case "Zug" -> "Gleis";
+            case "Schiff" -> "Steg";
+            default -> "Kante";
+        };
         if (leg.getEstimatedBay() != null) {
             stationName += ", " + plattform + " " + leg.getEstimatedBay().getText();
         } else if (leg.getPlannedBay() != null) {
@@ -206,7 +212,7 @@ public class App {
                 new LocationRef(originPoint), LocalDateTime.now().plus(Duration.ofMinutes(20)));
         Destination destination = new Destination(
                 new LocationRef(destinationPoint));
-        Params params = new Params(5);
+        Params params = new Params(10);
 
         RequestPayload requestPayload = new RequestPayload(
                 new TripRequest(origin, destination, params));
